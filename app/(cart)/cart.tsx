@@ -1,14 +1,15 @@
-import { DELETE, GET, GET_IMG } from "@/app/APIService"; // ✅ thêm DELETE
+import { DELETE, GET, GET_IMG, POST } from "@/app/APIService"; // ✅ thêm DELETE
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { router, Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,7 +19,7 @@ import {
 export default function CartScreen() {
   const [cart, setCart] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
+  const router = useRouter();
   // ✅ Hàm tải giỏ hàng
   const fetchCart = async () => {
     try {
@@ -41,12 +42,48 @@ export default function CartScreen() {
       setLoading(false);
     }
   };
+  const handlePayment = async () => {
+    try {
+      const email = await AsyncStorage.getItem("user-email");
+      const cartId = await AsyncStorage.getItem("cart-id");
+
+      if (!email || !cartId) {
+        Alert.alert("Lỗi", "Không tìm thấy thông tin người dùng hoặc giỏ hàng.");
+        return;
+      }
+
+      const paymentMethod = "vnpay"; // bạn có thể thay "momo" nếu backend hỗ trợ
+
+      const endpoint = `public/users/${encodeURIComponent(email)}/carts/${cartId}/payments/${paymentMethod}/order`;
+
+      console.log("💳 Gửi request thanh toán:", endpoint);
+
+      const res = await POST(endpoint, {}); // body rỗng
+      console.log("✅ Kết quả thanh toán:", res.data);
+
+      // Nếu backend trả về URL thanh toán VNPAY
+      if (res.data.paymentUrl) {
+        Linking.openURL(res.data.paymentUrl); // mở web thanh toán
+      } else {
+        Alert.alert("Đơn hàng đã được tạo!", "Thanh toán bằng VNPAY đang xử lý.");
+      }
+    } catch (error: any) {
+      console.error("❌ Lỗi thanh toán:", error.response?.data || error.message);
+      Alert.alert("Lỗi", "Không thể thực hiện thanh toán, vui lòng thử lại!");
+    }
+  };
 
   // ✅ Hàm xóa sản phẩm khỏi giỏ hàng
   const handleDelete = async (productId: number) => {
     try {
       const cartId = await AsyncStorage.getItem("cart-id");
-      if (!cartId) return Alert.alert("Lỗi", "Không tìm thấy cartId!");
+      if (!cartId) {
+        Alert.alert("Lỗi", "Không tìm thấy cartId!");
+        return;
+      }
+
+      console.log("🧩 cartId:", cartId);
+      console.log("🧩 productId:", productId);
 
       Alert.alert(
         "Xác nhận",
@@ -58,23 +95,25 @@ export default function CartScreen() {
             style: "destructive",
             onPress: async () => {
               try {
-                const endpoint = `public/carts/${cartId}/product/${productId}`;
-                const res = await DELETE(endpoint);
-                console.log("✅ Xóa thành công:", res.data);
+                // ✅ chỉ truyền phần gốc, id là productId
+                const baseEndpoint = `public/carts/${cartId}/product`;
+                console.log("🚀 Gửi DELETE:", `${baseEndpoint}/${productId}`);
 
+                const res = await DELETE(baseEndpoint, productId.toString());
+                console.log("✅ Kết quả xóa:", res.data);
 
-                // Tải lại giỏ hàng sau khi xóa
-                fetchCart();
+                await fetchCart();
+                Alert.alert("Thành công", "Sản phẩm đã được xóa khỏi giỏ hàng!");
               } catch (err: any) {
-                console.error("❌ Lỗi xóa:", err.response?.data || err.message);
+                console.error("❌ Lỗi khi gọi DELETE:", err.response?.data || err.message);
                 Alert.alert("Lỗi", "Không thể xóa sản phẩm khỏi giỏ hàng.");
               }
             },
           },
         ]
       );
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error("❌ Lỗi ngoài try:", error);
     }
   };
 
@@ -156,15 +195,21 @@ export default function CartScreen() {
             <Text style={styles.subtotalLabel}>Total</Text>
             <Text style={styles.subtotal}>{total.toLocaleString()} VNĐ</Text>
           </View>
+
           <TouchableOpacity
             style={styles.checkoutBtn}
             onPress={() =>
-              Alert.alert("Thông báo", "Chức năng thanh toán đang phát triển!")
+              router.push({
+                pathname: "/(payments)/payment",
+                params: { total: total.toString() },
+              })
             }
           >
             <Text style={styles.checkoutText}>Buy</Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </TouchableOpacity>
+
+
         </View>
 
         {/* Navbar */}

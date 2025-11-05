@@ -503,7 +503,7 @@ const GET_IMG = (imagePath: string) => {
     return 'https://via.placeholder.com/150?text=No+Image';
   }
   if (imagePath.startsWith('http')) return imagePath;
-  return `http://192.168.43.43:8082/api/public/products/image/${encodeURIComponent(imagePath)}`;
+  return `http://192.168.1.28:8082/api/public/products/image/${encodeURIComponent(imagePath)}`;
 };
 
 // 🟩 Card Trending — có ❤️ và ➕

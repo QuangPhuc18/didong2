@@ -121,7 +121,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios, { AxiosResponse } from "axios";
 
-const API_URL = "http://192.168.43.43:8082/api/";
+const API_URL = "http://192.168.1.28:8082/api/";
 
 // ==================== TOKEN ====================
 async function getToken() {
@@ -180,9 +180,8 @@ export function PUT(endpoint: string, data: any): Promise<AxiosResponse<any>> {
 }
 
 // ==================== DELETE ====================
-export function DELETE(endpoint: string, id?: string): Promise<AxiosResponse<any>> {
-  const fullEndpoint = id ? `${endpoint}/${id}` : endpoint;
-  return callApi(fullEndpoint, "DELETE");
+export function DELETE(endpoint: string, id: string): Promise<AxiosResponse<any>> {
+  return callApi(`${endpoint}/${id}`, "DELETE");
 }
 
 // ==================== GET_IMG ====================

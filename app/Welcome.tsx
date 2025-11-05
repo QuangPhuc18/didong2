@@ -19,7 +19,7 @@ const Welcome = () => {
         <View style={styles.FormLogin}>
         <View >
             
-            <Link href="/login" style={styles.Button}>Login</Link>
+            <Link href="/SignInScreen" style={styles.Button}>Login</Link>
         </View>
         <View>
             <Link href="/register" style={styles.Register}>Register</Link>

@@ -482,20 +482,25 @@
 //   },
 // });
 
+import { GET } from '@/app/APIService';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
+  Animated,
   FlatList,
   Image,
   ImageBackground,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { GET } from '@/app/APIService';
 
 // 🖼️ Hàm lấy ảnh từ backend
 const GET_IMG = (imagePath: string) => {
@@ -570,6 +575,18 @@ export default function HomeTab() {
   const router = useRouter();
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  
+  // ✅ States cho search
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const slideAnim = useState(new Animated.Value(-500))[0];
+
+  // ✅ States cho menu dropdown
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  const scaleAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -599,6 +616,104 @@ export default function HomeTab() {
     fetchCategories();
   }, []);
 
+  // ✅ Lấy email user khi load
+  useEffect(() => {
+    const getUserEmail = async () => {
+      const email = await AsyncStorage.getItem('user-email');
+      setUserEmail(email || 'User');
+    };
+    getUserEmail();
+  }, []);
+
+  // ✅ Hàm mở menu
+  const openMenu = () => {
+    setMenuVisible(true);
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 7,
+    }).start();
+  };
+
+  // ✅ Hàm đóng menu
+  const closeMenu = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setMenuVisible(false));
+  };
+
+  // ✅ Hàm đăng xuất
+// ✅ Hàm đăng xuất
+const handleLogout = async () => {
+  try {
+    // Xóa thông tin đăng nhập trong AsyncStorage
+    await AsyncStorage.multiRemove(['jwt-token', 'user-email', 'cart-id']);
+
+    // Điều hướng về trang đăng nhập
+    router.replace('/SignInScreen');
+
+    console.log('✅ Đăng xuất thành công');
+  } catch (error) {
+    console.error('❌ Lỗi đăng xuất:', error);
+    Alert.alert('Lỗi', 'Không thể đăng xuất, vui lòng thử lại');
+  }
+};
+
+  // ✅ Hàm mở search
+  const openSearch = () => {
+    setSearchVisible(true);
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 8,
+    }).start();
+  };
+
+  // ✅ Hàm đóng search
+  const closeSearch = () => {
+    Animated.timing(slideAnim, {
+      toValue: -500,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setSearchVisible(false);
+      setSearchQuery('');
+      setSearchResults([]);
+    });
+  };
+
+  // ✅ Hàm tìm kiếm
+  const handleSearch = async (text: string) => {
+    setSearchQuery(text);
+    
+    if (text.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await GET(
+        `public/products?pageNumber=0&pageSize=20&sortBy=productId&sortOrder=asc`
+      );
+      
+      const filtered = (response.data.content || []).filter((product: any) =>
+        product.productName.toLowerCase().includes(text.toLowerCase()) ||
+        product.category?.categoryName.toLowerCase().includes(text.toLowerCase())
+      );
+      
+      setSearchResults(filtered);
+    } catch (error) {
+      console.error('❌ Lỗi tìm kiếm:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const trendingProducts = products.slice(0, 3);
   const popularProducts = products.slice(3);
 
@@ -612,15 +727,21 @@ export default function HomeTab() {
             <Ionicons name="menu-outline" size={28} color="#000" />
           </TouchableOpacity>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.iconSpacing}>
-              <Ionicons name="search-outline" size={24} color="#000" />
+            {/* ✅ Nút search với hiệu ứng */}
+            <TouchableOpacity style={styles.iconSpacing} onPress={openSearch}>
+              <View style={styles.searchIconContainer}>
+                <Ionicons name="search-outline" size={24} color="#1F41BB" />
+              </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconSpacing}>
+            
+            {/* ✅ Avatar với menu dropdown */}
+            <TouchableOpacity style={styles.iconSpacing} onPress={openMenu}>
               <Image
                 source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
                 style={styles.avatar}
               />
             </TouchableOpacity>
+            
             <TouchableOpacity style={styles.iconSpacing}>
               <Ionicons name="filter-outline" size={22} color="#000" />
             </TouchableOpacity>
@@ -696,6 +817,190 @@ export default function HomeTab() {
         </View>
       </ScrollView>
 
+      {/* ✅ Dropdown Menu cho Avatar */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeMenu}
+      >
+        <TouchableOpacity 
+          style={styles.menuOverlay} 
+          activeOpacity={1} 
+          onPress={closeMenu}
+        >
+          <Animated.View 
+            style={[
+              styles.menuContainer,
+              {
+                transform: [{ scale: scaleAnim }],
+                opacity: scaleAnim,
+              }
+            ]}
+          >
+            {/* Header menu */}
+            <View style={styles.menuHeader}>
+              <Image
+                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                style={styles.menuAvatar}
+              />
+              <View style={styles.menuUserInfo}>
+                <Text style={styles.menuUserName}>Xin chào!</Text>
+                <Text style={styles.menuUserEmail} numberOfLines={1}>
+                  {userEmail}
+                </Text>
+              </View>
+            </View>
+
+            {/* Menu items */}
+            <View style={styles.menuDivider} />
+            
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => {
+                closeMenu();
+                router.push('/(profile)/profile');
+              }}
+            >
+              <Ionicons name="person-outline" size={22} color="#333" />
+              <Text style={styles.menuItemText}>Thông tin cá nhân</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => {
+                closeMenu();
+                // router.push('/orders'); // Nếu có trang orders
+              }}
+            >
+              <Ionicons name="receipt-outline" size={22} color="#333" />
+              <Text style={styles.menuItemText}>Đơn hàng của tôi</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => {
+                closeMenu();
+                router.push('/(profile)/ChangePasswordScreen'); // Nếu có trang settings
+              }}
+            >
+              <Ionicons name="settings-outline" size={22} color="#333" />
+              <Text style={styles.menuItemText}>Đổi mật khẩu</Text>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
+            {/* Logout button */}
+            <TouchableOpacity 
+              style={[styles.menuItem, styles.logoutItem]}
+              onPress={handleLogout}
+            >
+              <Ionicons name="log-out-outline" size={22} color="#FF3B30" />
+              <Text style={[styles.menuItemText, styles.logoutText]}>Đăng xuất</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ✅ Modal Search đẹp */}
+      <Modal
+        visible={searchVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeSearch}
+      >
+        <View style={styles.searchOverlay}>
+          <Animated.View 
+            style={[
+              styles.searchContainer,
+              { transform: [{ translateY: slideAnim }] }
+            ]}
+          >
+            {/* Header tìm kiếm */}
+            <View style={styles.searchHeader}>
+              <TouchableOpacity onPress={closeSearch} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={24} color="#333" />
+              </TouchableOpacity>
+              <View style={styles.searchInputContainer}>
+                <Ionicons name="search-outline" size={20} color="#999" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Tìm kiếm sản phẩm..."
+                  placeholderTextColor="#999"
+                  value={searchQuery}
+                  onChangeText={handleSearch}
+                  autoFocus
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                  }}>
+                    <Ionicons name="close-circle" size={20} color="#999" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Kết quả tìm kiếm */}
+            <ScrollView style={styles.searchResults}>
+              {isSearching ? (
+                <View style={styles.searchLoading}>
+                  <Text style={styles.searchLoadingText}>Đang tìm kiếm...</Text>
+                </View>
+              ) : searchQuery.length < 2 ? (
+                <View style={styles.searchEmpty}>
+                  <Ionicons name="search" size={60} color="#ddd" />
+                  <Text style={styles.searchEmptyText}>
+                    Nhập tên sản phẩm để tìm kiếm
+                  </Text>
+                </View>
+              ) : searchResults.length === 0 ? (
+                <View style={styles.searchEmpty}>
+                  <Ionicons name="sad-outline" size={60} color="#ddd" />
+                  <Text style={styles.searchEmptyText}>
+                    Không tìm thấy sản phẩm nào
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.searchResultsList}>
+                  {searchResults.map((item) => (
+                    <TouchableOpacity
+                      key={item.productId}
+                      style={styles.searchResultItem}
+                      onPress={() => {
+                        closeSearch();
+                        router.push({
+                          pathname: '/details/product/[id]',
+                          params: { id: item.productId },
+                        });
+                      }}
+                    >
+                      <Image
+                        source={{ uri: GET_IMG(item.image) }}
+                        style={styles.searchResultImage}
+                      />
+                      <View style={styles.searchResultInfo}>
+                        <Text style={styles.searchResultName} numberOfLines={2}>
+                          {item.productName}
+                        </Text>
+                        <Text style={styles.searchResultCategory}>
+                          {item.category?.categoryName || 'Unknown'}
+                        </Text>
+                        <Text style={styles.searchResultPrice}>
+                          ${item.price.toLocaleString()}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#999" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
+
       {/* ⚙️ Footer Navigation */}
       <View style={styles.footer}>
         <TouchableOpacity
@@ -708,7 +1013,7 @@ export default function HomeTab() {
 
         <TouchableOpacity
           style={styles.navButton}
-          onPress={() => router.push('/message')}
+          onPress={() => router.push('/')}
         >
           <Ionicons name="chatbubble-outline" size={24} color="#999" />
           <Text style={styles.navText}>Message</Text>
@@ -746,6 +1051,83 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   iconSpacing: { marginLeft: 16 },
   avatar: { width: 40, height: 40, borderRadius: 20 },
+
+  // ✅ Search icon với hiệu ứng
+  searchIconContainer: {
+    backgroundColor: '#E8F0FF',
+    padding: 8,
+    borderRadius: 20,
+  },
+
+  // ✅ Menu Dropdown Styles
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 60,
+    paddingRight: 16,
+  },
+  menuContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: 280,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F8F9FA',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  menuAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
+  menuUserInfo: {
+    flex: 1,
+  },
+  menuUserName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  menuUserEmail: {
+    fontSize: 13,
+    color: '#666',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#E5E5E5',
+    marginVertical: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    paddingVertical: 14,
+  },
+  menuItemText: {
+    fontSize: 15,
+    color: '#333',
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  logoutItem: {
+    backgroundColor: '#FFF5F5',
+  },
+  logoutText: {
+    color: '#FF3B30',
+  },
 
   // 🏷️ Banner giữ nguyên màu
   banner: {
@@ -822,6 +1204,107 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#1E90FF', marginBottom: 10 },
   viewAll: { color: '#1E90FF', fontWeight: '500' },
+
+  // ✅ Search Modal Styles
+  searchOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  searchContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  searchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    paddingTop: 50,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  backButton: {
+    marginRight: 12,
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#333',
+  },
+  searchResults: {
+    flex: 1,
+  },
+  searchLoading: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  searchLoadingText: {
+    fontSize: 16,
+    color: '#999',
+  },
+  searchEmpty: {
+    padding: 60,
+    alignItems: 'center',
+  },
+  searchEmptyText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  searchResultsList: {
+    padding: 16,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  searchResultImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  searchResultInfo: {
+    flex: 1,
+  },
+  searchResultName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  searchResultCategory: {
+    fontSize: 13,
+    color: '#999',
+    marginBottom: 4,
+  },
+  searchResultPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F41BB',
+  },
 
   // ⚙️ Footer
   footer: {

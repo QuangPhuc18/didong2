@@ -1,4 +1,4 @@
-import { DELETE, GET, GET_IMG, POST } from "@/app/APIService"; // ✅ thêm DELETE
+import { DELETE_CART_PRODUCT, GET, GET_IMG, POST } from "@/app/APIService"; // ✅ thêm DELETE
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
@@ -20,6 +20,7 @@ export default function CartScreen() {
   const [cart, setCart] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+
   // ✅ Hàm tải giỏ hàng
   const fetchCart = async () => {
     try {
@@ -42,6 +43,8 @@ export default function CartScreen() {
       setLoading(false);
     }
   };
+
+  // ✅ Hàm thanh toán
   const handlePayment = async () => {
     try {
       const email = await AsyncStorage.getItem("user-email");
@@ -52,18 +55,16 @@ export default function CartScreen() {
         return;
       }
 
-      const paymentMethod = "vnpay"; // bạn có thể thay "momo" nếu backend hỗ trợ
-
+      const paymentMethod = "vnpay";
       const endpoint = `public/users/${encodeURIComponent(email)}/carts/${cartId}/payments/${paymentMethod}/order`;
 
       console.log("💳 Gửi request thanh toán:", endpoint);
 
-      const res = await POST(endpoint, {}); // body rỗng
+      const res = await POST(endpoint, {});
       console.log("✅ Kết quả thanh toán:", res.data);
 
-      // Nếu backend trả về URL thanh toán VNPAY
       if (res.data.paymentUrl) {
-        Linking.openURL(res.data.paymentUrl); // mở web thanh toán
+        Linking.openURL(res.data.paymentUrl);
       } else {
         Alert.alert("Đơn hàng đã được tạo!", "Thanh toán bằng VNPAY đang xử lý.");
       }
@@ -73,49 +74,34 @@ export default function CartScreen() {
     }
   };
 
-  // ✅ Hàm xóa sản phẩm khỏi giỏ hàng
-  const handleDelete = async (productId: number) => {
-    try {
-      const cartId = await AsyncStorage.getItem("cart-id");
-      if (!cartId) {
-        Alert.alert("Lỗi", "Không tìm thấy cartId!");
-        return;
-      }
+  // ✅ Hàm xóa sản phẩm khỏi giỏ hàng (update UI ngay)
+const handleRemoveItem = async (item: any) => {
+  try {
+    const cartId = cart?.cartId;
+    const productId = item.productId;
 
-      console.log("🧩 cartId:", cartId);
-      console.log("🧩 productId:", productId);
+    console.log("🗑️ Đang xóa sản phẩm:", productId, "trong giỏ:", cartId);
+    await DELETE_CART_PRODUCT(cartId, productId);
 
-      Alert.alert(
-        "Xác nhận",
-        "Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?",
-        [
-          { text: "Hủy", style: "cancel" },
-          {
-            text: "Xóa",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                // ✅ chỉ truyền phần gốc, id là productId
-                const baseEndpoint = `public/carts/${cartId}/product`;
-                console.log("🚀 Gửi DELETE:", `${baseEndpoint}/${productId}`);
+    // ✅ Cập nhật lại UI ngay lập tức
+    setCart((prevCart: any) => {
+      const newProducts = prevCart.products.filter((p: any) => p.productId !== productId);
 
-                const res = await DELETE(baseEndpoint, productId.toString());
-                console.log("✅ Kết quả xóa:", res.data);
+      // ✅ Gọi lại API để tính tổng mới chính xác
+      fetchCart(); // load lại giỏ từ backend sau khi xóa
 
-                await fetchCart();
-                Alert.alert("Thành công", "Sản phẩm đã được xóa khỏi giỏ hàng!");
-              } catch (err: any) {
-                console.error("❌ Lỗi khi gọi DELETE:", err.response?.data || err.message);
-                Alert.alert("Lỗi", "Không thể xóa sản phẩm khỏi giỏ hàng.");
-              }
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error("❌ Lỗi ngoài try:", error);
-    }
-  };
+      return {
+        ...prevCart,
+        products: newProducts,
+      };
+    });
+
+    Alert.alert("🗑️ Thành công", "Đã xóa sản phẩm khỏi giỏ hàng!");
+  } catch (error) {
+    console.error("❌ Lỗi khi xóa sản phẩm:", error);
+    Alert.alert("Lỗi", "Không thể xóa sản phẩm, vui lòng thử lại!");
+  }
+};
 
   // ✅ Khi vào lại màn hình sẽ tự load giỏ hàng
   useFocusEffect(
@@ -149,7 +135,7 @@ export default function CartScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-
+      
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -179,7 +165,7 @@ export default function CartScreen() {
                 </Text>
 
                 {/* Nút XÓA */}
-                <TouchableOpacity onPress={() => handleDelete(item.productId)}>
+                <TouchableOpacity onPress={() => handleRemoveItem(item)}>
                   <Ionicons name="trash-outline" size={22} color="red" />
                 </TouchableOpacity>
               </View>
@@ -208,8 +194,6 @@ export default function CartScreen() {
             <Text style={styles.checkoutText}>Buy</Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </TouchableOpacity>
-
-
         </View>
 
         {/* Navbar */}
@@ -223,7 +207,7 @@ export default function CartScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.navButton}
-            onPress={() => router.push("/message")}
+            onPress={() => router.push("/")}
           >
             <Ionicons name="chatbubble-outline" size={24} color="#999" />
             <Text style={styles.navText}>Message</Text>
@@ -277,15 +261,48 @@ const styles = StyleSheet.create({
   info: { flex: 1, marginLeft: 12, justifyContent: "space-between" },
   name: { fontWeight: "bold", fontSize: 16 },
   size: { color: "gray", marginTop: 4 },
-  actions: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
+  actions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
   price: { fontWeight: "bold", fontSize: 16, color: "#000" },
-  bottomBar: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#eee" },
-  footer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12 },
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
   subtotalLabel: { color: "#666", fontSize: 14 },
   subtotal: { fontSize: 20, fontWeight: "bold", color: "#1F41BB" },
-  checkoutBtn: { backgroundColor: "#1F41BB", flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
+  checkoutBtn: {
+    backgroundColor: "#1F41BB",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
   checkoutText: { color: "#fff", fontWeight: "bold", marginRight: 8 },
-  navbar: { flexDirection: "row", justifyContent: "space-around", alignItems: "center", borderTopWidth: 1, borderTopColor: "#eee", paddingVertical: 10 },
+  navbar: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingVertical: 10,
+  },
   navButton: { justifyContent: "center", alignItems: "center" },
   navText: { fontSize: 12, marginTop: 4, color: "#999" },
 });

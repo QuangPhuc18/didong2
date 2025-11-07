@@ -1,32 +1,52 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Platform,
-  TextInput,
-} from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function PaymentScreen() {
   const [message, setMessage] = useState("");
   const [selectedPayment, setSelectedPayment] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [corporateInvoice, setCorporateInvoice] = useState(false);
-  
+    const router = useRouter();
   // ✅ Nhận total từ trang cart (đơn vị VNĐ)
   const params = useLocalSearchParams();
-  const totalVND = params.total ? parseFloat(params.total as string) : 58000;
-  const total = totalVND / 23000; // Chuyển sang USD để hiển thị (nếu cần)
-  
+
   // ✅ Debug: In ra console
-  useEffect(() => {
-    console.log("📱 Payment nhận params:", params);
-    console.log("💰 Total VNĐ:", totalVND);
-  }, []);
+const [totalVND, setTotalVND] = useState(0);
+
+useEffect(() => {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    const url = new URL(window.location.href);
+
+    const vnpCode = url.searchParams.get("vnp_ResponseCode");
+    const amountParam = url.searchParams.get("amount");
+    const status = url.searchParams.get("status");
+
+    if (amountParam) {
+      setTotalVND(parseFloat(amountParam));
+    } else if (params.total) {
+      setTotalVND(parseFloat(params.total as string));
+    } else {
+      setTotalVND(58000);
+    }
+
+    if (vnpCode === "00" || status === "success") {
+      setMessage("✅ Thanh toán thành công!");
+    } else if (vnpCode) {
+      setMessage("❌ Thanh toán thất bại!");
+    }
+  }
+}, []);
 
   useEffect(() => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -41,37 +61,65 @@ export default function PaymentScreen() {
     }
   }, []);
 
-  const handlePayment = async () => {
-    if (!selectedPayment) {
-      setMessage("Vui lòng chọn phương thức thanh toán");
+const handlePayment = async () => {
+  if (!selectedPayment) {
+    setMessage("Vui lòng chọn phương thức thanh toán");
+    return;
+  }
+  if (!agreeTerms) {
+    setMessage("Vui lòng đồng ý với điều khoản");
+    return;
+  }
+  if (selectedPayment !== "vnpay") {
+    setMessage("Chỉ demo VNPay trong flow này.");
+    return;
+  }
+
+  try {
+    // 🔹 1. Lấy email từ AsyncStorage (được lưu khi login)
+    const email = await AsyncStorage.getItem("user-email");
+    if (!email) {
+      setMessage("⚠️ Không tìm thấy email người dùng, vui lòng đăng nhập lại.");
       return;
     }
 
-    if (!agreeTerms) {
-      setMessage("Vui lòng đồng ý với điều khoản");
+    // 🔹 2. Lấy cartId từ AsyncStorage hoặc từ API (tùy cách bạn quản lý)
+    const cartId = await AsyncStorage.getItem("cart-id"); // nếu bạn có lưu cartId
+    if (!cartId) {
+      setMessage("⚠️ Không tìm thấy giỏ hàng của bạn.");
       return;
     }
 
-    if (selectedPayment === "vnpay") {
-      try {
-        // ✅ Gửi số tiền VNĐ lên server, server sẽ nhân 100 cho VNPay
-        const res = await fetch(`http://localhost:3000/payment?amount=${totalVND}`);
-        const data = await res.json();
-        const url = data.url;
+    console.log("🔹 Sending create_payment with amount:", totalVND, { email, cartId });
 
-        if (Platform.OS === "web") {
-          window.location.href = url;
-        }
-      } catch (e) {
-        setMessage("⚠️ Lỗi kết nối server");
-      }
-    } else if (selectedPayment === "cod") {
-      setMessage("Đặt hàng thành công! Thanh toán khi nhận hàng.");
-    } else if (selectedPayment === "momo") {
-      setMessage("Chuyển đến trang thanh toán MoMo...");
+    // 🔹 3. Gọi API tạo thanh toán
+    const resp = await fetch(
+      `http://192.168.1.28:3000/create_payment?email=${encodeURIComponent(email)}&cartId=${encodeURIComponent(cartId)}&amount=${encodeURIComponent(totalVND)}`
+    );
+    const json = await resp.json();
+    console.log("🔸 create_payment response:", json);
+
+    if (!resp.ok) {
+      setMessage("⚠️ Server trả lỗi: " + (json?.error || resp.status));
+      return;
     }
-  };
 
+    if (!json.url) {
+      setMessage("⚠️ Không nhận được link thanh toán từ server");
+      return;
+    }
+
+    // 🔹 4. Redirect sang VNPay
+    if (Platform.OS === "web") {
+      window.location.href = json.url;
+    } else {
+      setMessage("Thanh toán VNPay chỉ dùng trên web trong demo này.");
+    }
+  } catch (err) {
+    console.error("❌ handlePayment error:", err);
+    setMessage("⚠️ Lỗi kết nối server");
+  }
+};
   const PaymentOption = ({ id, title, logo, selected, onSelect }: {
     id: string;
     title: string;
@@ -112,10 +160,9 @@ export default function PaymentScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity>
-          <Ionicons name="chevron-back" size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Checkout</Text>
+ <TouchableOpacity onPress={() => router.push("/hometab")}>
+      <Ionicons name="chevron-back" size={24} color="#1F2937" />
+    </TouchableOpacity>        <Text style={styles.headerTitle}>Checkout</Text>
         <TouchableOpacity>
           <Text style={styles.skipButton}>Skip</Text>
         </TouchableOpacity>

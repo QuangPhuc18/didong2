@@ -137,6 +137,9 @@ export async function callApi(
   const token = await getToken();
   const url = `${API_URL}${endpoint}`;
   const headers: any = { "Content-Type": "application/json" };
+  //  if (token && !endpoint.startsWith("public/")) {
+  //   headers.Authorization = `Bearer ${token}`;
+  // }
   if (token) headers.Authorization = `Bearer ${token}`;
 
   console.log(`📡 [${method}] ${url}`);
@@ -212,3 +215,29 @@ export async function POST_LOGIN(email: string, password: string): Promise<boole
     return false;
   }
 }
+export async function DELETE_CART_PRODUCT(
+  cartId: number,
+  productId: number
+): Promise<AxiosResponse<any>> {
+  const token = await AsyncStorage.getItem("jwt-token");
+  const url = `${API_URL}public/carts/${cartId}/product/${productId}`;
+  const headers: any = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  console.log("📡 DELETE:", url);
+  if (token) console.log("🔑 Token:", token.substring(0, 25) + "...");
+
+  try {
+    const res = await axios.delete(url, { headers });
+    console.log("✅ Xóa thành công:", res.status);
+    return res;
+  } catch (error: any) {
+    console.error(
+      "❌ Lỗi API:",
+      error.response?.status,
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+}
+

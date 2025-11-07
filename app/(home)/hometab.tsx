@@ -575,7 +575,7 @@ export default function HomeTab() {
   const router = useRouter();
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
-  
+
   // ✅ States cho search
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -646,21 +646,21 @@ export default function HomeTab() {
   };
 
   // ✅ Hàm đăng xuất
-// ✅ Hàm đăng xuất
-const handleLogout = async () => {
-  try {
-    // Xóa thông tin đăng nhập trong AsyncStorage
-    await AsyncStorage.multiRemove(['jwt-token', 'user-email', 'cart-id']);
+  // ✅ Hàm đăng xuất
+  const handleLogout = async () => {
+    try {
+      // Xóa thông tin đăng nhập trong AsyncStorage
+      await AsyncStorage.multiRemove(['jwt-token', 'user-email', 'cart-id']);
 
-    // Điều hướng về trang đăng nhập
-    router.replace('/SignInScreen');
+      // Điều hướng về trang đăng nhập
+      router.replace('/SignInScreen');
 
-    console.log('✅ Đăng xuất thành công');
-  } catch (error) {
-    console.error('❌ Lỗi đăng xuất:', error);
-    Alert.alert('Lỗi', 'Không thể đăng xuất, vui lòng thử lại');
-  }
-};
+      console.log('✅ Đăng xuất thành công');
+    } catch (error) {
+      console.error('❌ Lỗi đăng xuất:', error);
+      Alert.alert('Lỗi', 'Không thể đăng xuất, vui lòng thử lại');
+    }
+  };
 
   // ✅ Hàm mở search
   const openSearch = () => {
@@ -689,7 +689,7 @@ const handleLogout = async () => {
   // ✅ Hàm tìm kiếm
   const handleSearch = async (text: string) => {
     setSearchQuery(text);
-    
+
     if (text.trim().length < 2) {
       setSearchResults([]);
       return;
@@ -700,12 +700,12 @@ const handleLogout = async () => {
       const response = await GET(
         `public/products?pageNumber=0&pageSize=20&sortBy=productId&sortOrder=asc`
       );
-      
+
       const filtered = (response.data.content || []).filter((product: any) =>
         product.productName.toLowerCase().includes(text.toLowerCase()) ||
         product.category?.categoryName.toLowerCase().includes(text.toLowerCase())
       );
-      
+
       setSearchResults(filtered);
     } catch (error) {
       console.error('❌ Lỗi tìm kiếm:', error);
@@ -733,15 +733,15 @@ const handleLogout = async () => {
                 <Ionicons name="search-outline" size={24} color="#1F41BB" />
               </View>
             </TouchableOpacity>
-            
+
             {/* ✅ Avatar với menu dropdown */}
             <TouchableOpacity style={styles.iconSpacing} onPress={openMenu}>
               <Image
-                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                source={require('../../assets/images/user.png')}
                 style={styles.avatar}
               />
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.iconSpacing}>
               <Ionicons name="filter-outline" size={22} color="#000" />
             </TouchableOpacity>
@@ -824,12 +824,12 @@ const handleLogout = async () => {
         animationType="none"
         onRequestClose={closeMenu}
       >
-        <TouchableOpacity 
-          style={styles.menuOverlay} 
-          activeOpacity={1} 
+        <TouchableOpacity
+          style={styles.menuOverlay}
+          activeOpacity={1}
           onPress={closeMenu}
         >
-          <Animated.View 
+          <Animated.View
             style={[
               styles.menuContainer,
               {
@@ -841,7 +841,7 @@ const handleLogout = async () => {
             {/* Header menu */}
             <View style={styles.menuHeader}>
               <Image
-                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                source={ require('../../assets/images/user.png')}
                 style={styles.menuAvatar}
               />
               <View style={styles.menuUserInfo}>
@@ -854,8 +854,8 @@ const handleLogout = async () => {
 
             {/* Menu items */}
             <View style={styles.menuDivider} />
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
                 closeMenu();
@@ -866,7 +866,7 @@ const handleLogout = async () => {
               <Text style={styles.menuItemText}>Thông tin cá nhân</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
                 closeMenu();
@@ -877,7 +877,7 @@ const handleLogout = async () => {
               <Text style={styles.menuItemText}>Đơn hàng của tôi</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.menuItem}
               onPress={() => {
                 closeMenu();
@@ -891,7 +891,7 @@ const handleLogout = async () => {
             <View style={styles.menuDivider} />
 
             {/* Logout button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.menuItem, styles.logoutItem]}
               onPress={handleLogout}
             >
@@ -910,7 +910,7 @@ const handleLogout = async () => {
         onRequestClose={closeSearch}
       >
         <View style={styles.searchOverlay}>
-          <Animated.View 
+          <Animated.View
             style={[
               styles.searchContainer,
               { transform: [{ translateY: slideAnim }] }
@@ -1013,7 +1013,7 @@ const handleLogout = async () => {
 
         <TouchableOpacity
           style={styles.navButton}
-          onPress={() => router.push('/')}
+          onPress={() => router.push('/message')}
         >
           <Ionicons name="chatbubble-outline" size={24} color="#999" />
           <Text style={styles.navText}>Message</Text>
